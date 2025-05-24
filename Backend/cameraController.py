@@ -6,17 +6,25 @@ class CameraController:
     def __init__(self):
         try:
             self.picam2 = Picamera2()
-            self.picam2.configure(self.picam2.preview_configuration)
+            config = self.picam2.create_preview_configuration(
+                main={"size": (640, 480), "format": "BGR888"},
+                controls={
+                    "AwbEnable": 1,  # Use 1/0 instead of True/False
+                    "AwbMode": 1,    # 0 = auto, see modes below
+                    "ColourGains": (1.0, 1.0)
+                }
+            )
+            self.picam2.configure(config)
             self.picam2.start()
-            self.lock = threading.Lock()  # ✅ Lock initialisieren
-        except RuntimeError as e:
+            self.lock = threading.Lock()
+        except Exception as e:
             print("❌ Kamera konnte nicht gestartet werden:", e)
             self.picam2 = None
 
     def get_frame(self):
-        with self.lock:  # ✅ Zugriff absichern
-            frame = self.picam2.capture_array()
-            #print("📸 Frame gesendet")
+        with self.lock:
+            frame = self.picam2.capture_array()  # Likely RGB
+            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)  # Swap to BGR
             return frame
 
     def get_autofocus_score(self, frame):
