@@ -1,12 +1,7 @@
 import React, { useState, useEffect } from "react";
 
-const BACKEND_URL = "http://192.168.0.12:5000";
+const BACKEND_URL = "http://192.168.1.11:5000";
 
-const IMAGE_WIDTH_UM = 1280*10;
-const IMAGE_HEIGHT_UM = 960*10;
-const OVERLAP = 0.3;           // 30% Überlappung
-const STEP_X = Math.round(IMAGE_WIDTH_UM * (1 - OVERLAP));
-const STEP_Y = Math.round(IMAGE_HEIGHT_UM * (1 - OVERLAP));
 
 function App() {
   const [autofocusScore, setAutofocusScore] = useState(0);
@@ -16,13 +11,36 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [stitchStatus, setStitchStatus] = useState("");
   const [stitchingActive, setStitchingActive] = useState(false);
-
+  const [imageDims, setImageDims] = useState(null);
+  const [stepX, setStepX] = useState(0);
+  const [stepY, setStepY] = useState(0);
+  
   useEffect(() => {
     const img = document.getElementById("stream");
     if (img) {
       img.src = `${BACKEND_URL}/video_feed`;
     }
   }, []);
+
+  useEffect(() => {
+  const fetchDimensions = async () => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/image_dimensions`);
+      const data = await res.json();
+      setImageDims(data);
+
+      const overlap = 0.3;
+      const stepX = Math.round(data.width_um * 2 * (1 - overlap));
+      const stepY = Math.round(data.height_um * 2 * (1 - overlap));
+      setStepX(stepX);
+      setStepY(stepY);
+    } catch (err) {
+      console.error("Fehler beim Laden der Bilddimensionen:", err);
+    }
+  };
+
+  fetchDimensions();
+}, []);
 
   const sendZoom = async (direction) => {
     try {
@@ -231,7 +249,7 @@ function App() {
           <div className="flex flex-col items-center">
             <div className="flex space-x-2">
               <button
-                onClick={() => handleMoveStitching(0, STEP_Y, 0)}
+                onClick={() => handleMoveStitching(0, stepY, 0)}
                 className="bg-gray-400 px-3 py-1 rounded"
                 disabled={!stitchingActive}
               >
@@ -240,7 +258,7 @@ function App() {
             </div>
             <div className="flex space-x-2">
               <button
-                onClick={() => handleMoveStitching(STEP_X, 0, 0)}
+                onClick={() => handleMoveStitching(stepX, 0, 0)}
                 className="bg-gray-400 px-3 py-1 rounded"
                 disabled={!stitchingActive}
               >←</button>
@@ -252,14 +270,14 @@ function App() {
                 Foto aufnehmen
               </button>
               <button
-                onClick={() => handleMoveStitching(-STEP_X, 0, 0)}
+                onClick={() => handleMoveStitching(-stepX, 0, 0)}
                 className="bg-gray-400 px-3 py-1 rounded"
                 disabled={!stitchingActive}
               >→</button>
             </div>
             <div className="flex space-x-2">
               <button
-                onClick={() => handleMoveStitching(0, -STEP_Y, 0)}
+                onClick={() => handleMoveStitching(0, -stepY, 0)}
                 className="bg-gray-400 px-3 py-1 rounded"
                 disabled={!stitchingActive}
               >↓</button>
@@ -268,6 +286,12 @@ function App() {
           {/* Status-Text */}
           <div className="mt-2 text-center text-sm text-blue-700 min-h-[1.5em]">{stitchStatus}</div>
         </div>
+        {imageDims && (
+  <div className="text-sm text-gray-600 mt-2">
+    Bildgröße: {imageDims.width_px}×{imageDims.height_px} px<br />
+    (ca. {imageDims.width_um} × {imageDims.height_um} µm)
+  </div>
+)}
       </div>
     </div>
   );

@@ -8,13 +8,18 @@ class MotorController:
         time.sleep(2)  # warten bis bereit
 
     def send_command(self, command):
-        with serial.Serial(self.port, self.baudrate, timeout=1) as ser:
-            time.sleep(2)  # Warte, bis Verbindung bereit ist
-            ser.write((command + '\n').encode())
-            print(f"Gesendet: {command}")
-            response = ser.readline().decode().strip()
-            print(f"Antwort: {response}")
-            return response
+        try:
+            with serial.Serial(self.port, self.baudrate, timeout=1) as ser:
+                time.sleep(2)  # Warte, bis Verbindung bereit ist
+                ser.write((command + '\n').encode())
+                print(f"Gesendet: {command}")
+                response = ser.readline().decode().strip()
+                print(f"Antwort: {response}")
+                return response
+        except serial.SerialException as e:
+            error_msg = f"SerialException: {str(e)}"
+            print(error_msg)
+            return error_msg
 
     def move(self, x=0, y=0, z=0):
         command = f"mr {x} {y} {z}"
