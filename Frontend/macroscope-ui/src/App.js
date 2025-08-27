@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 
-const BACKEND_URL = "http://192.168.1.11:5000";
+const BACKEND_URL = "http://192.168.0.12:5000";
+// If you don't already have this:
+const API_BASE = process.env.REACT_APP_API_BASE || 'http://localhost:5000';
 
 // === Fokus-Score Konfiguration ===
 const ROI_SCALE = 0.55;          // 40–60% ausprobieren
@@ -27,6 +29,13 @@ function App() {
   const [imageDims, setImageDims] = useState(null);
   const [stepX, setStepX] = useState(0);
   const [stepY, setStepY] = useState(0);
+
+  const [smartAfBusy, setSmartAfBusy] = React.useState(false);
+  const [smartAfStatus, setSmartAfStatus] = React.useState(null);
+
+  // NextGen AF UI state
+  const [nextgenBusy, setNextgenBusy] = React.useState(false);
+  const [nextgenStatus, setNextgenStatus] = React.useState(null);
 
   // Cancel-Ref für den Video-Sweep
   const sweepCancelRef = useRef(false);
@@ -295,6 +304,70 @@ function App() {
     }
   };
 
+  async function handleSmartAutofocus() {
+    setSmartAfBusy(true);
+    setSmartAfStatus(null);
+    try {
+      const res = await fetch(`${API_BASE}/autofocus/smart`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}) // optionally pass tuning params here
+      });
+      const data = await res.json();
+      if (!res.ok || data.status !== 'ok') {
+        const msg = data?.message || `HTTP ${res.status}`;
+        setSmartAfStatus({ error: msg });
+        return;
+      }
+      setSmartAfStatus({
+        best_z_um: data.best_z_um,
+        score: data.score,
+        window: data.window,
+        clipped: data.clipped
+      });
+    } catch (e) {
+      setSmartAfStatus({ error: String(e) });
+    } finally {
+      setSmartAfBusy(false);
+    }
+  }
+
+  // NextGen Autofocus handler
+  async function handleNextGenAutofocus() {
+    setNextgenBusy(true);
+    setNextgenStatus(null);
+    try {
+      const res = await fetch(`${API_BASE}/autofocus/nextgen`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        // Optionally: pass field_id/neighbor_focus if you manage tiles
+        body: JSON.stringify({
+          // field_id: 'tile_42',
+          // neighbor_focus: 1234.0,
+          // start_pos_um: 0,
+          // coarse_step_um: 15, coarse_n: 5, fine_step_um: 3, fine_n: 5, settle_s: 0.25
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || data.status !== 'ok') {
+        const msg = data?.message || `HTTP ${res.status}`;
+        setNextgenStatus({ error: msg });
+        return;
+      }
+      setNextgenStatus({
+        best_z_um: data.best_z_um,
+        score: data.score,
+        coverage: data.coverage,
+        coarse_points: data.coarse_points,
+        fine_points: data.fine_points
+      });
+    } catch (e) {
+      setNextgenStatus({ error: String(e) });
+    } finally {
+      setNextgenBusy(false);
+    }
+  }
+
   const moveAxis = async (x = 0, y = 0, z = 0, showStatus = false) => {
     try {
       const res = await fetch(`${BACKEND_URL}/move`, {
@@ -490,6 +563,40 @@ function App() {
           <button onClick={startVideoAF_simple} className="bg-gray-700 text-white px-4 py-2 rounded hover:bg-gray-800">
             🎥 Video-Autofokus
           </button>
+          <div className="flex flex-col">
+            <button
+              onClick={handleSmartAutofocus}
+              disabled={smartAfBusy}
+              className="bg-teal-600 text-white px-4 py-2 rounded hover:bg-teal-700 disabled:opacity-60 w-full"
+            >
+              {smartAfBusy ? 'Smart AF läuft…' : 'Smart Autofocus'}
+            </button>
+            {smartAfStatus && (
+              <span className="text-sm mt-1">
+                {smartAfStatus.error
+                  ? `Fehler: ${smartAfStatus.error}`
+                  : `Z=${smartAfStatus.best_z_um.toFixed(1)} µm (Score≈${smartAfStatus.score.toFixed(2)})`}
+              </span>
+            )}
+          </div>
+          
+          {/* NextGen Autofocus */}
+          <div className="flex flex-col mt-2">
+            <button
+              onClick={handleNextGenAutofocus}
+              disabled={nextgenBusy}
+              className="bg-amber-600 text-white px-4 py-2 rounded hover:bg-amber-700 disabled:opacity-60 w-full"
+            >
+              {nextgenBusy ? 'NextGen AF läuft…' : 'NextGen Autofocus'}
+            </button>
+            {nextgenStatus && (
+              <span className="text-sm mt-1">
+                {nextgenStatus.error
+                  ? `Fehler: ${nextgenStatus.error}`
+                  : `Z=${nextgenStatus.best_z_um.toFixed(1)} µm (Score≈${nextgenStatus.score.toFixed(2)} | cov≈${(nextgenStatus.coverage ?? 0).toFixed(2)})`}
+              </span>
+            )}
+          </div>
           {/* <button onClick={cancelVideoAF} className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">AF abbrechen</button> */}
         </div>
 
